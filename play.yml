@@ -1,0 +1,60 @@
+- hosts: all
+  gather_facts: no
+  vars_prompt:
+    - name: cn
+      prompt: Enter a name for container
+      private: no
+  tasks:
+
+    - name: docker repo
+      yum_repository:
+       name: docker
+       description: docker repository
+       file: docker
+       baseurl: "https://download.docker.com/linux/centos/7/x86_64/stable/"
+       enabled: yes
+
+    - name: "Installing docker ....."
+      shell: "yum install docker-ce --nobest -y"
+
+    - name: starting docker service
+      service:
+        name: docker
+        state: started
+        enabled: yes
+      become: yes
+
+    - name: installing docker-py
+      shell: "pip3 install docker-py"
+ 
+    - name: pulling image for docker container
+      docker_image:
+        name: httpd
+        source: pull
+
+    - name: creating a docker container
+      docker_container:
+         name: "{{ cn }}"
+         image: httpd
+         state: started
+         tty: yes
+         detach: yes
+
+    - name: retrieving the ip
+      docker_container_info:
+        name: "{{ cn }}"
+      register: var
+    - name: printing ip of the container
+      debug:
+              var: var.container.NetworkSettings.IPAddress
+
+    - name: configuring the ip
+      blockinfile:
+        path: /ws1/hosts
+        block: |
+          [docker_container]
+          {{  var.container.NetworkSettings.IPAddress }} ansible_user=root ansible_ssh_pass=root ansible_connection=ssh
+    - name: getting inventory file
+      ansible.builtin.fetch:
+              src: /ws1/hosts
+              dest: /ccontainer/fetched
